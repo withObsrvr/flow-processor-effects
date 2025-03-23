@@ -104,7 +104,7 @@ func (p *EffectsProcessor) parseTransaction(tx map[string]interface{}) (*Transac
 		Index:      uint32(0), // We might not have this information, default to 0
 		Envelope:   envelope,
 		Result:     resultPair,
-		Meta:       transactionMeta,
+		UnsafeMeta: transactionMeta,
 		FeeChanges: xdr.LedgerEntryChanges{}, // We might not have this information
 	}
 

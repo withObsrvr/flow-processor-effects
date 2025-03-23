@@ -14,6 +14,7 @@ import (
 type EffectsProcessor struct {
 	config            map[string]interface{}
 	networkPassphrase string
+	consumers         []pluginapi.Consumer
 }
 
 // Name returns the plugin's name.
@@ -31,9 +32,39 @@ func (p *EffectsProcessor) Type() pluginapi.PluginType {
 	return pluginapi.ProcessorPlugin
 }
 
+// GetSchemaDefinition returns GraphQL type definitions for this plugin
+func (p *EffectsProcessor) GetSchemaDefinition() string {
+	return `
+type Effect {
+    id: String!
+    address: String!
+    addressMuxed: String
+    operationId: Int!
+    details: JSON
+    type: Int!
+    typeString: String!
+    closedAt: String!
+    ledgerSequence: Int!
+    index: Int!
+}
+
+scalar JSON
+`
+}
+
+// GetQueryDefinitions returns GraphQL query definitions for this plugin
+func (p *EffectsProcessor) GetQueryDefinitions() string {
+	return `
+    effectsByOperationId(operationId: Int!): [Effect]
+    effectsByAddress(address: String!): [Effect]
+    effectsByType(type: Int!): [Effect]
+`
+}
+
 // Initialize processes configuration parameters.
 func (p *EffectsProcessor) Initialize(config map[string]interface{}) error {
 	p.config = config
+	p.consumers = make([]pluginapi.Consumer, 0)
 
 	// Extract network passphrase from config
 	if passphrase, ok := config["network_passphrase"].(string); ok {
@@ -44,6 +75,12 @@ func (p *EffectsProcessor) Initialize(config map[string]interface{}) error {
 
 	log.Println("EffectsProcessor initialized with config:", config)
 	return nil
+}
+
+// RegisterConsumer registers a downstream consumer
+func (p *EffectsProcessor) RegisterConsumer(consumer pluginapi.Consumer) {
+	log.Printf("EffectsProcessor: Registering consumer %s", consumer.Name())
+	p.consumers = append(p.consumers, consumer)
 }
 
 // Process implements the main processing logic for transforming operations into effects.
@@ -59,7 +96,18 @@ func (p *EffectsProcessor) Process(ctx context.Context, msg pluginapi.Message) e
 
 	// Extract transaction data from the message
 	var transaction map[string]interface{}
-	if err := json.Unmarshal(msg.Payload(), &transaction); err != nil {
+
+	// Use type assertion to convert payload to []byte
+	payloadBytes, ok := msg.Payload.([]byte)
+	if !ok {
+		return NewProcessorError(
+			fmt.Errorf("expected payload to be []byte, got %T", msg.Payload),
+			ErrorTypeParsing,
+			ErrorSeverityError,
+		)
+	}
+
+	if err := json.Unmarshal(payloadBytes, &transaction); err != nil {
 		return NewProcessorError(
 			fmt.Errorf("error unmarshaling transaction: %w", err),
 			ErrorTypeParsing,
@@ -94,24 +142,24 @@ func (p *EffectsProcessor) Process(ctx context.Context, msg pluginapi.Message) e
 		}
 
 		// Create a new message with the effect data
-		outputMsg := pluginapi.NewMessage(effectJSON)
-
-		// Set message metadata from the original message
-		for k, v := range msg.Metadata() {
-			outputMsg.SetMetadata(k, v)
+		outputMsg := pluginapi.Message{
+			Payload: effectJSON,
+			Metadata: map[string]interface{}{
+				"effect_id":   effect.EffectId,
+				"effect_type": effect.TypeString,
+			},
 		}
 
-		// Add effect-specific metadata
-		outputMsg.SetMetadata("effect_id", effect.EffectId)
-		outputMsg.SetMetadata("effect_type", effect.TypeString)
+		// Copy existing metadata from the source message
+		for k, v := range msg.Metadata {
+			outputMsg.Metadata[k] = v
+		}
 
-		// Output the message
-		if err := msg.OutputTo(ctx, outputMsg); err != nil {
-			return NewProcessorError(
-				fmt.Errorf("error outputting effect message: %w", err),
-				ErrorTypeIO,
-				ErrorSeverityError,
-			)
+		// Forward to consumers
+		for _, consumer := range p.consumers {
+			if err := consumer.Process(ctx, outputMsg); err != nil {
+				log.Printf("Error in consumer %s: %v", consumer.Name(), err)
+			}
 		}
 	}
 
