@@ -5,7 +5,7 @@ go 1.23.4
 require (
 	github.com/guregu/null v4.0.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/stellar/go v0.0.0-20250322075617-5ccaef04a539
+	github.com/stellar/go v0.0.0-20250311234916-385ac5aca1a4
 	github.com/withObsrvr/pluginapi v0.0.0-20250303141549-e645e333195c
 )
 
@@ -13,7 +13,7 @@ require (
 	cel.dev/expr v0.22.0 // indirect
 	cloud.google.com/go v0.120.0 // indirect
 	cloud.google.com/go/auth v0.15.0 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	cloud.google.com/go/iam v1.4.2 // indirect
 	cloud.google.com/go/monitoring v1.24.1 // indirect
