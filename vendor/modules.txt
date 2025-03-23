@@ -1,7 +1,7 @@
 # cel.dev/expr v0.22.0
 ## explicit; go 1.21.1
 cel.dev/expr
-# cloud.google.com/go v0.120.0
+# cloud.google.com/go v0.119.0
 ## explicit; go 1.23.0
 cloud.google.com/go/internal
 cloud.google.com/go/internal/optional
